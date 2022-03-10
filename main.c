@@ -3,19 +3,21 @@
 #include <signal.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <sys/user.h>
 
 int main(int argc, char const *argv[])
 {
-	if(!argv[1]){
+	/*if(!argv[1]){
 		printf("No executable passed in argument\n");
 		return 1;
-	}
+	}*/
 
 	pid_t child = fork();
 
@@ -59,22 +61,10 @@ int main(int argc, char const *argv[])
 		{
 			// si la section courante est de type 'table de symbole'
 			if (sections[i].sh_type == SHT_SYMTAB) {
-				// on sauvegarde:
-				// 1. le pointeur sur la table de symboles
-				// 2. Le nombre de symboles dans cette table
 				symtab = (Elf64_Sym *)((char *)start + sections[i].sh_offset);
 				nb_symbols = sections[i].sh_size / sections[i].sh_entsize;
 
-				// La table des strings peut se trouver dans la table
-				// des sections (type SHT_STRTAB) mais attention !! Il 
-				// existe plusieurs string tables (.strtab et .shstrtab par exemple)
-				// il faut donc être sûr de récupérer la bonne.
-				// Ici petite astuce, le Shdr dispose d'un champ (sh_link) qui pointe
-				// vers une autre section header variant en fonction du contexte
-				// Dans le cas d'un section header pour SYMTAB, le sh_link pointe vers
-				// la table des strings (man elf).
-				//
-				// Facile donc de récupérer le pointeur sur le tableau :)
+				//recup pointeur sur tableau 
 				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
 
 			}
@@ -90,11 +80,19 @@ int main(int argc, char const *argv[])
 
 		char tmp[20] = "./";
 		strcat(tmp, argv[1]);
+
+		//Processus laisse le controle au processus pere
+		ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 		
 		execvp(tmp, NULL);
+		//execl("/bin/ls","ls", NULL);
 	}
 	else{
-		wait(NULL);
+		printf("waiting for the child to stop\n");
+		waitpid(child, NULL, 0);
+		
+		ptrace(PTRACE_CONT, child, NULL, NULL);
+		waitpid(child, NULL, 0);
 	}
 
 	return 0;
