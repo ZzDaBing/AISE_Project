@@ -12,6 +12,21 @@
 #include <fcntl.h>
 #include <sys/user.h>
 
+int waitchild(pid_t pid) {
+    int status;
+    waitpid(pid, &status, 0);
+    if(WIFSTOPPED(status)) {
+        return 0;
+    }
+    else if (WIFEXITED(status)) {
+        return 1;
+    }
+    else {
+        printf("%d raised an unexpected status %d", pid, status);
+        return 1;
+    }
+}
+
 int main(int argc, char const *argv[])
 {
 	/*if(!argv[1]){
@@ -89,10 +104,10 @@ int main(int argc, char const *argv[])
 	}
 	else{
 		printf("waiting for the child to stop\n");
-		waitpid(child, NULL, 0);
-		
+		waitchild(child);
+
 		ptrace(PTRACE_CONT, child, NULL, NULL);
-		waitpid(child, NULL, 0);
+		waitchild(child);
 	}
 
 	return 0;
