@@ -104,7 +104,9 @@ int main(int argc, char const *argv[])
 	}
 	else{
 		printf("waiting for the child to stop\n");
-		waitchild(child);
+		while(waitchild(child)){
+			ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+		}
 
 		ptrace(PTRACE_CONT, child, NULL, NULL);
 		waitchild(child);
