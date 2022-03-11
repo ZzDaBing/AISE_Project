@@ -1,11 +1,14 @@
 CC?=gcc
 
-all: program
+all: program test
 
 program: main.c
 	$(CC) $< -o $@
 
+test: test.c
+	$(CC) $< -o $@
+
 clean:
-	rm -f program
+	rm -f program test
 
 .PHONY: clean
