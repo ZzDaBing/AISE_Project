@@ -3,8 +3,8 @@
 
 int main(int argc, char const *argv[])
 {
-	printf("Hello World!\n");
+	//printf("Hello World!\n");
 	char* test;
-	//test[0] = '0';
+	test[0] = '0';
 	return 0;
 }

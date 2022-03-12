@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <bits/types/siginfo_t.h>
+#include <bits/siginfo-consts.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/ptrace.h>
@@ -11,6 +13,77 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <sys/user.h>
+
+// si_code values for SIGTRAP signal
+#define TRAP_BRKPT  1	// Process breakpoint
+#define TRAP_TRACE  2  	// Process trace trap
+#define TRAP_BRANCH 3  	// Process taken branch trap
+#define TRAP_HWBKPT 4  	// Hardware breakpoint/watchpoint			
+#define TRAP_UNK	5	// Undiagnosed trap
+
+void which_sigcode(siginfo_t *sig)
+{
+	printf("Error : ");
+	if(sig->si_signo== 5)
+		{
+			switch(sig->si_code)
+			{
+				case TRAP_BRKPT :
+					printf("Process breakpoint.\n");
+					break;
+				case TRAP_TRACE :
+					printf("Process trace trap.\n");
+					break;
+				case TRAP_BRANCH :
+					printf("Process taken branch trap.\n");
+					break;
+				case TRAP_HWBKPT :
+					printf("Hardware breakpoint/watchpoint. \n");
+					break;
+				case TRAP_UNK :
+					printf("Undiagnosed trap.\n");
+					break;
+				default:
+					printf("Unknown SIGTRAP code.\n");
+			}
+		}
+		else if(sig->si_signo == 11)
+		{
+			switch(sig->si_code)
+			{
+				case SEGV_MAPERR :
+					printf("Address not mapped to object.\n");
+					break;
+				case SEGV_ACCERR :
+					printf("Invalid permissions for mapped object.\n");
+					break;
+				case SEGV_BNDERR :
+					printf("Bounds checking failure.\n");
+					break;
+				case SEGV_PKUERR :
+					printf("Protection key checking failure.\n");
+					break;
+				case SEGV_ACCADI :
+					printf("ADI not enabled for mapped object.\n");
+					break;
+				case SEGV_ADIDERR :
+					printf("Disrupting MCD error.\n");
+					break;
+				case SEGV_ADIPERR :
+					printf("Precise MCD exception.\n");
+					break;
+				case SEGV_MTEAERR :
+					printf("Asynchronous ARM MTE error.\n");
+					break;
+				case SEGV_MTESERR :
+					printf("Synchronous ARM MTE exception.\n");
+					break;
+				default:
+					printf("Unknown SIGSEGV code.\n");
+			}
+		}
+		putchar('\n');
+}
 
 int waitchild(pid_t pid) {
     int status;
@@ -29,12 +102,34 @@ int waitchild(pid_t pid) {
 
 int main(int argc, char const *argv[])
 {
-	/*if(!argv[1]){
-		printf("No executable passed in argument\n");
-		return 1;
-	}*/
+	fprintf(stderr, "Parent PID = %d and PPID = %d\n", getpid(), getppid());
+	if(argc != 2)
+		return printf("Error arg : ./debug <executable>\n"), 1;
+
+	// Argument is <executable> or ./<executable> at choice
+	size_t len = strlen(argv[1]);
+	int offset = 2;
+	if(argv[1][0] == (char)'.' && argv[1][1] == (char)'/')
+		offset = 0;
+	char cmd[offset+len];
+	if(offset == 2)
+	{
+		strncpy(cmd, "./", offset);
+		strncat(cmd, argv[1], len);
+	}
+	else if(offset == 0)
+		strncpy(cmd, argv[1], len);
+	char * const eargv[] = {cmd, NULL};
+
+	siginfo_t sig;
+	int wait_status;
 
 	pid_t child = fork();
+	if(child == -1)
+	{
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
 
 	if(child == 0){
 		void* start = NULL;
@@ -91,25 +186,67 @@ int main(int argc, char const *argv[])
 		for (i = 0; i < nb_symbols; ++i) {
 			//printf("%d: %s\n", i, strtab + symtab[i].st_name);
 		}
+		munmap(start, stat.st_size);
 		close(fd);
 
-		char tmp[20] = "./";
-		strcat(tmp, argv[1]);
+		// debugger
+		printf("Child  PID = %d and PPID = %d\n", getpid(), getppid());
 
-		//Processus laisse le controle au processus pere
-		ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-		
-		execvp(tmp, NULL);
-		//execl("/bin/ls","ls", NULL);
-	}
-	else{
-		printf("waiting for the child to stop\n");
-		while(waitchild(child)){
-			ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+		printf("Debugger tracing %d\n", getpid());
+		if(ptrace(PTRACE_TRACEME, 0, NULL, NULL) == -1)
+		{
+			perror("ptrace_traceme");
+			exit(EXIT_FAILURE);
 		}
 
+		printf("Running %s\n\n", cmd);
+		if(execvp(eargv[0], eargv) == -1)
+		{
+			perror("execvp");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else
+	{
+		if(waitpid(child, &wait_status, 0) == -1)
+		{
+			perror("waitpid");
+			exit(EXIT_FAILURE);
+		}
+
+		if(WIFSTOPPED(wait_status))
+        {
+            printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
+        }
+
+		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
+		printf("Ptrace --> ");
+		printf("Signal number = %d\n", sig.si_signo);
+		printf("\t   Signal code = %d\n", sig.si_code);
+		
+		which_sigcode(&sig);
+		
 		ptrace(PTRACE_CONT, child, NULL, NULL);
-		waitchild(child);
+
+		wait_status = 0;
+		if(waitpid(child, &wait_status, 0) == -1)
+		{
+			perror("waitpid");
+			exit(EXIT_FAILURE);
+		}
+
+		if(WIFSTOPPED(wait_status))
+        {
+            printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
+        }
+
+		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
+		printf("Ptrace --> ");
+		printf("Signal number = %d\n", sig.si_signo);
+		printf("\t   Signal code = %d\n", sig.si_code);
+		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
+
+		which_sigcode(&sig);
 	}
 
 	return 0;
