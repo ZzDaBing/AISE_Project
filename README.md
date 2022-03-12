@@ -1,8 +1,8 @@
 Compile program:
-make
+`make`
 
 Run program:
-./program <executable>
+`./debug <executable>`
 
 Clean:
-make clean
+`make clean`
