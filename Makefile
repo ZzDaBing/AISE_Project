@@ -1,14 +1,17 @@
 CC = gcc
 
-all: debug test
+LIB = -lcapstone
 
-debug: main.c
-	$(CC) $< -o $@
+all : debug test testcap
 
-test: test.c
-	$(CC) $< -o $@
+debug : main.c
+	$(CC) $^ -o $@ $(LIB)
 
-clean:
-	rm -f debug test
+test : test.c
+	$(CC) $^ -o $@
 
-.PHONY: clean
+testcap : testcap.c
+	$(CC) $^ -o $@ $(LIB)
+
+clean :
+	rm test debug

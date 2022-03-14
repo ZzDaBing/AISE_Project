@@ -1,18 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <signal.h>
 #include <bits/types/siginfo_t.h>
 #include <bits/siginfo-consts.h>
-#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 #include <string.h>
 #include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
-#include <elf.h>
-#include <fcntl.h>
 #include <sys/user.h>
+#include <sys/syscall.h>
+#include <sys/reg.h>
+#include <capstone/capstone.h>
+
+#include "mysyscall.h"
 
 // si_code values for SIGTRAP signal
 #define TRAP_BRKPT  1	// Process breakpoint
@@ -85,22 +86,13 @@ void which_sigcode(siginfo_t *sig)
 		putchar('\n');
 }
 
-int waitchild(pid_t pid) {
-    int status;
-    waitpid(pid, &status, 0);
-    if(WIFSTOPPED(status)) {
-        return 0;
-    }
-    else if (WIFEXITED(status)) {
-        return 1;
-    }
-    else {
-        printf("%d raised an unexpected status %d", pid, status);
-        return 1;
-    }
+void flush(FILE* in)
+{
+   int c;
+   while ( (c = fgetc(in)) != EOF && c != '\n');
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char **argv)
 {
 	fprintf(stderr, "Parent PID = %d and PPID = %d\n", getpid(), getppid());
 	if(argc != 2)
@@ -131,65 +123,8 @@ int main(int argc, char const *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if(child == 0){
-		void* start = NULL;
-		int i, fd;
-		struct stat stat;
-		char *strtab;
-		int nb_symbols;
-
-		fd = open(argv[1], O_RDONLY, 660);
-		if(fd < 0)
-			perror("open");
-
-		// récupération de la taille du fichier
-		fstat(fd, &stat);
-
-		//projection du fichier (MAP_SHARED importe peu ici)
-		start = mmap(0, stat.st_size, PROT_READ , MAP_FILE | MAP_SHARED, fd, 0);
-		if(start == MAP_FAILED)
-		{
-			perror("mmap");
-			abort();
-		}
-
-		// le premier octet mappé est le premier octet du fichier ELF
-		// Via un cast, on va pouvoir manipuler le fichier ELF mappé en mémoire
-		Elf64_Ehdr* hdr = (Elf64_Ehdr *) start;
-		Elf64_Sym* symtab;
-
-		// Affiche les 4 premiers octets
-		printf("Check four first bytes: %x '%c' '%c' '%c'\n", *(char*)start,*((char*)start+1), *((char*)start+2), *((char*)start+3));
-
-
-		// le header contient un champ donnant l'offset (en octet) où se trouve
-		// les sections headers
-		Elf64_Shdr* sections = (Elf64_Shdr *)((char *)start + hdr->e_shoff);
-
-		// parcours des sections
-		for (i = 0; i < hdr->e_shnum; i++)
-		{
-			// si la section courante est de type 'table de symbole'
-			if (sections[i].sh_type == SHT_SYMTAB) {
-				symtab = (Elf64_Sym *)((char *)start + sections[i].sh_offset);
-				nb_symbols = sections[i].sh_size / sections[i].sh_entsize;
-
-				//recup pointeur sur tableau 
-				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
-
-			}
-		}
-
-		// on parcourt alors la table des symboles
-		// pour chaque entrée, le champ st_name est un offset en octet depuis 
-		// le début du tableau où se trouve le nom.
-		for (i = 0; i < nb_symbols; ++i) {
-			//printf("%d: %s\n", i, strtab + symtab[i].st_name);
-		}
-		munmap(start, stat.st_size);
-		close(fd);
-
-		// debugger
+	if(child == 0)
+	{	
 		printf("Child  PID = %d and PPID = %d\n", getpid(), getppid());
 
 		printf("Debugger tracing %d\n", getpid());
@@ -208,6 +143,74 @@ int main(int argc, char const *argv[])
 	}
 	else
 	{
+		// char tap = 'c';
+		// int i = 0;
+		long orig_eax;
+		long ins;
+		struct user_regs_struct regs;
+		int i = 0;
+		while(i < 100)
+		{
+			if(waitpid(child, &wait_status, 0) == -1)
+			{
+				perror("waitpid");
+				exit(EXIT_FAILURE);
+			}
+
+			if(WIFSTOPPED(wait_status))
+	        {
+	            //printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
+	            // sleep(1);
+	        }
+
+			ptrace(PTRACE_GETREGS, child, NULL, &regs);
+			ins = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
+			
+
+			if(i%2 == 0)
+				mysyscall(regs.orig_rax);
+			// // printf("r15 = %.16llx\n", regs.r15);
+			// // printf("r14 = %.16llx\n", regs.r14);
+			// // printf("r13 = %.16llx\n", regs.r13);
+			// // printf("r12 = %.16llx\n", regs.r12);
+			printf("RBP = %.16llx RSP = %.16llx RIP = %.16llx\n", regs.rbp, regs.rsp, regs.rip);
+			// printf("rax = %.16llx\n", regs.rax);
+			// printf("rbx = %.16llx\n", regs.rbx);
+			// printf("rcx = %.16llx\n", regs.rcx);
+			// printf("rdx = %.16llx\n", regs.rdx);
+			// printf("rsi = %.16llx\n", regs.rsi);
+			// printf("rdi = %.16llx\n", regs.rdi);
+			// // printf("r11 = %.16llx\n", regs.r11);
+			// // printf("r10 = %.16llx\n", regs.r10);
+			// // printf("r9 = %.16llx\n", regs.r9);
+			// // printf("r8 = %.16llx\n", regs.r8);
+			// printf("orig_rax = %.16llx\n", regs.orig_rax);
+			// printf("cs = %.16llx\n", regs.cs);
+			//printf("eflags = %.16llx\n\n", regs.eflags);
+			// printf("ss = %.16llx\n", regs.ss);
+			// // printf("fs_base = %.16llx\n", regs.fs_base);
+			// // printf("gs_base = %.16llx\n", regs.gs_base);
+			// // printf("ds = %.16llx\n", regs.ds);
+			// // printf("es = %.16llx\n", regs.es);
+			// // printf("fs = %.16llx\n", regs.fs);
+			// // printf("gs = %.16llx\n", regs.gs);
+			// printf("RIP: %.16llx Instruction executed: %.16lx\n\n", regs.rip, ins);
+
+
+			// if(regs.orig_rax == SYS_execve)
+			// {
+			// 	printf("The child made a syscall %lld\n", regs.orig_rax);
+			// 	ptrace(PTRACE_SINGLESTEP, child, 0, 0);
+			// }
+			// else
+			ptrace(PTRACE_SYSCALL, child, NULL, NULL);
+
+			// tap = getchar();
+			// if(tap == (char)'q')
+			// 	break;
+			i++;
+		}
+
 		if(waitpid(child, &wait_status, 0) == -1)
 		{
 			perror("waitpid");
@@ -219,12 +222,12 @@ int main(int argc, char const *argv[])
             printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
         }
 
-		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
-		printf("Ptrace --> ");
-		printf("Signal number = %d\n", sig.si_signo);
-		printf("\t   Signal code = %d\n", sig.si_code);
+		// ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
+		// printf("Ptrace --> ");
+		// printf("Signal number = %d\n", sig.si_signo);
+		// printf("\t   Signal code = %d\n", sig.si_code);
 		
-		which_sigcode(&sig);
+		// which_sigcode(&sig);
 		
 		ptrace(PTRACE_CONT, child, NULL, NULL);
 
@@ -240,14 +243,22 @@ int main(int argc, char const *argv[])
             printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
         }
 
-		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
-		printf("Ptrace --> ");
-		printf("Signal number = %d\n", sig.si_signo);
-		printf("\t   Signal code = %d\n", sig.si_code);
-		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
+		// ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
+		// printf("Ptrace --> ");
+		// printf("Signal number = %d\n", sig.si_signo);
+		// printf("\t   Signal code = %d\n", sig.si_code);
+		// printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
 
-		which_sigcode(&sig);
-	}
+		// which_sigcode(&sig);
+		// char str[6];
+		// snprintf(str, 6, "%d", child);
+		// char * const eargv2[] = {"pmap","-X", str, NULL};
+		// if(execvp(eargv2[0], eargv2) == -1)
+		// {
+		// 	perror("execvp");
+		// 	exit(EXIT_FAILURE);
+		// }
+}
 
 	return 0;
 }
