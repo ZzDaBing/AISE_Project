@@ -22,6 +22,7 @@
 #define TRAP_HWBKPT 4  	// Hardware breakpoint/watchpoint			
 #define TRAP_UNK	5	// Undiagnosed trap
 
+//function to copy a src_file to dest_file
 int cp(const char *to, const char *from)
 {
     int fd_to, fd_from;
@@ -81,6 +82,7 @@ int cp(const char *to, const char *from)
     return -1;
 }
 
+//print information for signal passed in argument
 void which_sigcode(siginfo_t *sig)
 {
 	printf("Error : ");
@@ -145,23 +147,9 @@ void which_sigcode(siginfo_t *sig)
 		putchar('\n');
 }
 
-int waitchild(pid_t pid) {
-    int status;
-    waitpid(pid, &status, 0);
-    if(WIFSTOPPED(status)) {
-        return 0;
-    }
-    else if (WIFEXITED(status)) {
-        return 1;
-    }
-    else {
-        printf("%d raised an unexpected status %d", pid, status);
-        return 1;
-    }
-}
-
 int main(int argc, char const *argv[])
 {
+	//print the pid of current processus and his parent
 	fprintf(stderr, "Parent PID = %d and PPID = %d\n", getpid(), getppid());
 	if(argc != 2)
 		return printf("Error arg : ./debug <executable>\n"), 1;
@@ -191,7 +179,7 @@ int main(int argc, char const *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if(child == 0){
+	if(child == 0){	//child
 		void* start = NULL;
 		int i, fd;
 		struct stat stat;
@@ -202,10 +190,10 @@ int main(int argc, char const *argv[])
 		if(fd < 0)
 			perror("open");
 
-		// récupération de la taille du fichier
+		// get file's size
 		fstat(fd, &stat);
 
-		//projection du fichier (MAP_SHARED importe peu ici)
+		//file mmap
 		start = mmap(0, stat.st_size, PROT_READ , MAP_FILE | MAP_SHARED, fd, 0);
 		if(start == MAP_FAILED)
 		{
@@ -213,43 +201,39 @@ int main(int argc, char const *argv[])
 			abort();
 		}
 
-		// le premier octet mappé est le premier octet du fichier ELF
-		// Via un cast, on va pouvoir manipuler le fichier ELF mappé en mémoire
 		Elf64_Ehdr* hdr = (Elf64_Ehdr *) start;
 		Elf64_Sym* symtab;
 
-		// Affiche les 4 premiers octets
-		printf("Check four first bytes: %x '%c' '%c' '%c'\n", *(char*)start,*((char*)start+1), *((char*)start+2), *((char*)start+3));
+		//print 4 bytes
+		printf("Check four first bytes: %x '%x' '%x' '%x'\n", *(char*)start,*((char*)start+1), *((char*)start+2), *((char*)start+3));
 
 
-		// le header contient un champ donnant l'offset (en octet) où se trouve
-		// les sections headers
+		//offset where are headers sections
 		Elf64_Shdr* sections = (Elf64_Shdr *)((char *)start + hdr->e_shoff);
 
-		// parcours des sections
+		//course of the sections
 		for (i = 0; i < hdr->e_shnum; i++)
 		{
-			// si la section courante est de type 'table de symbole'
+			//if symbol table
 			if (sections[i].sh_type == SHT_SYMTAB) {
 				symtab = (Elf64_Sym *)((char *)start + sections[i].sh_offset);
 				nb_symbols = sections[i].sh_size / sections[i].sh_entsize;
 
-				//recup pointeur sur tableau 
+				//get pointer table
 				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
 
 			}
 		}
 
-		// on parcourt alors la table des symboles
-		// pour chaque entrée, le champ st_name est un offset en octet depuis 
-		// le début du tableau où se trouve le nom.
 		for (i = 0; i < nb_symbols; ++i) {
-			//printf("%d: %s\n", i, strtab + symtab[i].st_name);
+			printf("%d: %s\n", i, strtab + symtab[i].st_name);
 		}
 		munmap(start, stat.st_size);
 		close(fd);
 
-		// debugger
+		//Debugger
+
+		//print pid of current processu (child) and its parent
 		printf("Child  PID = %d and PPID = %d\n", getpid(), getppid());
 
 		printf("Debugger tracing %d\n", getpid());
@@ -259,6 +243,7 @@ int main(int argc, char const *argv[])
 			exit(EXIT_FAILURE);
 		}
 
+		//running program to debug
 		printf("Running %s\n\n", cmd);
 		if(execvp(eargv[0], eargv) == -1)
 		{
@@ -266,13 +251,13 @@ int main(int argc, char const *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-	else
-	{
-		//Declaration variables
+	else{	//father
+
+		//Variable declarations
 		struct user_regs_struct regs;
 		unsigned int rip;
-		//***********************
 
+		//check if can trace child
 		if(waitpid(child, &wait_status, 0) == -1)
 		{
 			perror("waitpid");
@@ -284,6 +269,7 @@ int main(int argc, char const *argv[])
             printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
         }
 
+        //get infos from the tracee
         ptrace(PTRACE_GETREGS, child, &regs.rip, rip);
 		rip = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
 		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
@@ -314,16 +300,15 @@ int main(int argc, char const *argv[])
 		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
 		which_sigcode(&sig);
 
+		//copy /proc//status file and /proc//maps file of child processus in new files in info_dir
 		char str[30] = "";
 		int pid_child = (int) child;
 		sprintf(str, "/proc/%d/status", pid_child);
-
-		cp("child_status.txt", str);
+		cp("info_dir/child_status.txt", str);
 
 		strcpy(str, "");
 		sprintf(str, "/proc/%d/maps", pid_child);
-		cp("child_maps.txt", str);
-		
+		cp("info_dir/child_maps.txt", str);
 	}
 
 	return 0;
