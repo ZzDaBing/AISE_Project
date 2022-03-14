@@ -13,6 +13,7 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <sys/user.h>
+#include <errno.h>
 
 // si_code values for SIGTRAP signal
 #define TRAP_BRKPT  1	// Process breakpoint
@@ -20,6 +21,65 @@
 #define TRAP_BRANCH 3  	// Process taken branch trap
 #define TRAP_HWBKPT 4  	// Hardware breakpoint/watchpoint			
 #define TRAP_UNK	5	// Undiagnosed trap
+
+int cp(const char *to, const char *from)
+{
+    int fd_to, fd_from;
+    char buf[4096];
+    ssize_t nread;
+    int saved_errno;
+
+    fd_from = open(from, O_RDONLY);
+    if (fd_from < 0)
+        return -1;
+
+    fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL, 0666);
+    if (fd_to < 0)
+        goto out_error;
+
+    while (nread = read(fd_from, buf, sizeof buf), nread > 0)
+    {
+        char *out_ptr = buf;
+        ssize_t nwritten;
+
+        do {
+            nwritten = write(fd_to, out_ptr, nread);
+
+            if (nwritten >= 0)
+            {
+                nread -= nwritten;
+                out_ptr += nwritten;
+            }
+            else if (errno != EINTR)
+            {
+                goto out_error;
+            }
+        } while (nread > 0);
+    }
+
+    if (nread == 0)
+    {
+        if (close(fd_to) < 0)
+        {
+            fd_to = -1;
+            goto out_error;
+        }
+        close(fd_from);
+
+        /* Success! */
+        return 0;
+    }
+
+  out_error:
+    saved_errno = errno;
+
+    close(fd_from);
+    if (fd_to >= 0)
+        close(fd_to);
+
+    errno = saved_errno;
+    return -1;
+}
 
 void which_sigcode(siginfo_t *sig)
 {
@@ -72,12 +132,12 @@ void which_sigcode(siginfo_t *sig)
 				case SEGV_ADIPERR :
 					printf("Precise MCD exception.\n");
 					break;
-				case SEGV_MTEAERR :
+				/*case SEGV_MTEAERR :
 					printf("Asynchronous ARM MTE error.\n");
 					break;
 				case SEGV_MTESERR :
 					printf("Synchronous ARM MTE exception.\n");
-					break;
+					break;*/
 				default:
 					printf("Unknown SIGSEGV code.\n");
 			}
@@ -208,6 +268,11 @@ int main(int argc, char const *argv[])
 	}
 	else
 	{
+		//Declaration variables
+		struct user_regs_struct regs;
+		unsigned int rip;
+		//***********************
+
 		if(waitpid(child, &wait_status, 0) == -1)
 		{
 			perror("waitpid");
@@ -219,6 +284,8 @@ int main(int argc, char const *argv[])
             printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
         }
 
+        ptrace(PTRACE_GETREGS, child, &regs.rip, rip);
+		rip = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
 		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
 		printf("Ptrace --> ");
 		printf("Signal number = %d\n", sig.si_signo);
@@ -245,8 +312,18 @@ int main(int argc, char const *argv[])
 		printf("Signal number = %d\n", sig.si_signo);
 		printf("\t   Signal code = %d\n", sig.si_code);
 		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
-
 		which_sigcode(&sig);
+
+		char str[30] = "";
+		int pid_child = (int) child;
+		sprintf(str, "/proc/%d/status", pid_child);
+
+		cp("child_status.txt", str);
+
+		strcpy(str, "");
+		sprintf(str, "/proc/%d/maps", pid_child);
+		cp("child_maps.txt", str);
+		
 	}
 
 	return 0;

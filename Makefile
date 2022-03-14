@@ -9,6 +9,6 @@ test: test.c
 	$(CC) $< -o $@
 
 clean:
-	rm -f debug test
+	rm -f debug test child_status.txt child_maps.txt
 
-.PHONY: clean
+.PHONY: clean test debug
