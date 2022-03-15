@@ -4,7 +4,7 @@ LIB = -lcapstone
 
 all : debug test testcap
 
-debug : main.c
+debug : main.c debugger.c mysyscall.c mysiginfo.c
 	$(CC) $^ -o $@ $(LIB)
 
 test : test.c
