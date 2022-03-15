@@ -1,27 +1,27 @@
 Name:	test
 Umask:	0002
 State:	t (tracing stop)
-Tgid:	5090
+Tgid:	8250
 Ngid:	0
-Pid:	5090
-PPid:	5089
-TracerPid:	5089
+Pid:	8250
+PPid:	8249
+TracerPid:	8249
 Uid:	1000	1000	1000	1000
 Gid:	1000	1000	1000	1000
 FDSize:	64
 Groups:	4 24 27 30 46 114 134 1000 
-NStgid:	5090
-NSpid:	5090
-NSpgid:	5089
+NStgid:	8250
+NSpid:	8250
+NSpgid:	8249
 NSsid:	1991
 VmPeak:	    2492 kB
 VmSize:	    2356 kB
 VmLck:	       0 kB
 VmPin:	       0 kB
-VmHWM:	     580 kB
-VmRSS:	     580 kB
+VmHWM:	     584 kB
+VmRSS:	     584 kB
 RssAnon:	      64 kB
-RssFile:	     516 kB
+RssFile:	     520 kB
 RssShmem:	       0 kB
 VmData:	      48 kB
 VmStk:	     132 kB

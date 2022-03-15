@@ -227,7 +227,27 @@ int main(int argc, char const *argv[])
 
 		for (i = 0; i < nb_symbols; ++i) {
 			printf("%d: %s\n", i, strtab + symtab[i].st_name);
+			printf("info : %s\n", strtab + symtab[i].st_info);
+			printf("value : 0x%llx\n", strtab + symtab[i].st_value);
 		}
+
+		//Offset where are program headers
+		Elf64_Phdr* phdr = (Elf64_Phdr *)((char*)start + hdr->e_phoff);
+		//course of the sections
+		for (i = 0; i < hdr->e_phnum; i++)
+		{
+			//LOAD 
+			/*if (phdr[i].p_type == PT_LOAD) {
+				symtab = (Elf64_Sym *)((char *)start + sections[i].sh_offset);
+				nb_symbols = sections[i].sh_size / sections[i].sh_entsize;
+
+				//get pointer table
+				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
+
+			}*/
+			//printf("phdr %d: %s\n", i, (char*)phdr[i].p_type);
+		}
+
 		munmap(start, stat.st_size);
 		close(fd);
 
