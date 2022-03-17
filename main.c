@@ -157,16 +157,14 @@ int main(int argc, char const *argv[])
 	// Argument is <executable> or ./<executable> at choice
 	size_t len = strlen(argv[1]);
 	int offset = 2;
-	if(argv[1][0] == (char)'.' && argv[1][1] == (char)'/')
+	if(argv[1][0] == '.' && argv[1][1] == '/')
 		offset = 0;
 	char cmd[offset+len];
 	if(offset == 2)
-	{
-		strncpy(cmd, "./", offset);
-		strncat(cmd, argv[1], len);
-	}
-	else if(offset == 0)
-		strncpy(cmd, argv[1], len);
+		strcpy(cmd, "./");
+
+	strcat(cmd, argv[1]);
+
 	char * const eargv[] = {cmd, NULL};
 
 	siginfo_t sig;
@@ -236,16 +234,10 @@ int main(int argc, char const *argv[])
 		//course of the sections
 		for (i = 0; i < hdr->e_phnum; i++)
 		{
-			//LOAD 
-			/*if (phdr[i].p_type == PT_LOAD) {
-				symtab = (Elf64_Sym *)((char *)start + sections[i].sh_offset);
-				nb_symbols = sections[i].sh_size / sections[i].sh_entsize;
-
-				//get pointer table
-				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
-
-			}*/
-			//printf("phdr %d: %s\n", i, (char*)phdr[i].p_type);
+			printf("phdr[%d] :\n", i);
+			printf("\t.p_type : %x,\n\t.p_offset : %x,\n\t.p_addr : %x,\n\t.p_vaddr : %x,\n\t.p_filesz : %x,\n\t .p_memsz : %x,\n\t .p_align : %x\n\n",phdr[i].p_type,
+			  phdr[i].p_offset, phdr[i].p_paddr, phdr[i].p_vaddr, phdr[i].p_filesz,
+			   phdr[i].p_memsz, phdr[i].p_align);
 		}
 
 		munmap(start, stat.st_size);
