@@ -221,13 +221,21 @@ int main(int argc, char const *argv[])
 				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
 
 			}
+
+			if(sections[i].sh_name == 171){	//.text section
+				printf(".text : %d\t addr : %llx\n", i, sections[i].sh_addr);
+				
+			}
 		}
 
-		for (i = 0; i < nb_symbols; ++i) {
-			printf("%d: %s\n", i, strtab + symtab[i].st_name);
-			printf("info : %s\n", strtab + symtab[i].st_info);
-			printf("value : 0x%llx\n", strtab + symtab[i].st_value);
-		}
+		// for (i = 0; i < nb_symbols; ++i) {
+		// 	printf("%d: %s\n", i, strtab + symtab[i].st_name);
+		// 	printf("\tinfo : %s\n", strtab + symtab[i].st_info);
+		// 	printf("\tvalue : 0x%llx\n\n", strtab + symtab[i].st_value);
+		// }
+
+
+
 
 		//Offset where are program headers
 		Elf64_Phdr* phdr = (Elf64_Phdr *)((char*)start + hdr->e_phoff);
