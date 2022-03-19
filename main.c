@@ -153,19 +153,8 @@ int main(int argc, char const *argv[])
 	fprintf(stderr, "Parent PID = %d and PPID = %d\n", getpid(), getppid());
 	if(argc != 2)
 		return printf("Error arg : ./debug <executable>\n"), 1;
-
-	// Argument is <executable> or ./<executable> at choice
-	size_t len = strlen(argv[1]);
-	int offset = 2;
-	if(argv[1][0] == '.' && argv[1][1] == '/')
-		offset = 0;
-	char cmd[offset+len];
-	if(offset == 2)
-		strcpy(cmd, "./");
-
-	strcat(cmd, argv[1]);
-
-	char * const eargv[] = {cmd, NULL};
+	
+	char * const eargv[] = {argv[1], NULL};
 
 	siginfo_t sig;
 	int wait_status;
@@ -209,6 +198,7 @@ int main(int argc, char const *argv[])
 		//offset where are headers sections
 		Elf64_Shdr* sections = (Elf64_Shdr *)((char *)start + hdr->e_shoff);
 
+		printf("\n========== Section Header ==========\n\n");
 		//course of the sections
 		for (i = 0; i < hdr->e_shnum; i++)
 		{
@@ -219,41 +209,73 @@ int main(int argc, char const *argv[])
 
 				//get pointer table
 				strtab = (char*)((char*)start + sections[sections[i].sh_link].sh_offset);
-
 			}
 
-			if(sections[i].sh_name == 171){	//.text section
-				printf(".text : %d\t addr : %llx\n", i, sections[i].sh_addr);
-				
-			}
+			printf("Section Header %d : \n", i);
+			printf("\t.sh_name : %d,\n\t.sh_type : %x,\n\t.sh_flags : %x,\n\t.sh_addr : %x,\n\t.sh_offset : %x,\n\t.sh_size : %x,\n\t.sh_link : %x,\n\t.sh_info : %x,\n\t .sh_addralign : %x,\n\t .sh_entsize : %x\n\n",
+		sections[i].sh_name, sections[i].sh_type, sections[i].sh_flags, sections[i].sh_addr, sections[i].sh_offset,
+		sections[i].sh_size, sections[i].sh_link, sections[i].sh_info, sections[i].sh_addralign, sections[i].sh_entsize);
+
 		}
 
-		// for (i = 0; i < nb_symbols; ++i) {
-		// 	printf("%d: %s\n", i, strtab + symtab[i].st_name);
-		// 	printf("\tinfo : %s\n", strtab + symtab[i].st_info);
-		// 	printf("\tvalue : 0x%llx\n\n", strtab + symtab[i].st_value);
-		// }
-
-
-
+		//Symbol table info
+		for (i = 0; i < nb_symbols; ++i) {
+			printf("%d: %s\n", i, strtab + symtab[i].st_name);
+			printf("\tinfo : %s\n", strtab + symtab[i].st_info);
+			printf("\tvalue : 0x%llx\n\n", strtab + symtab[i].st_value);
+		}
 
 		//Offset where are program headers
 		Elf64_Phdr* phdr = (Elf64_Phdr *)((char*)start + hdr->e_phoff);
+		
+		printf("========== Program Header ==========\n\n");
 		//course of the sections
 		for (i = 0; i < hdr->e_phnum; i++)
 		{
-			printf("phdr[%d] :\n", i);
+			//
+			switch (phdr[i].p_type){
+			    case PT_NULL:
+			        printf("Program Header %d : [NULL]\n", i);
+			        break;
+			    case PT_LOAD:
+			        printf("Program Header %d : [LOAD]\n", i);
+			        break;
+			    case PT_DYNAMIC:
+			        printf("Program Header %d : [DYNAMIC]\n", i);
+			        break;
+			    case PT_INTERP:
+			        printf("Program Header %d : [INTERP]\n", i);
+			        break;
+			    case PT_NOTE:
+			        printf("Program Header %d : [NOTE]\n", i);
+			        break;
+			    case PT_SHLIB:
+			        printf("Program Header %d : [SHLIB]\n", i);
+			        break;
+			    case PT_PHDR:
+			        printf("Program Header %d : [PHDR]\n", i);
+			        break;
+			    case PT_LOPROC:
+			        printf("Program Header %d : [LOPROC,HIPROC]\n", i);
+			        break;
+			    case PT_GNU_STACK:
+			        printf("Program Header %d : [GNU_STACK]\n", i);
+			        break;
+			    default:
+			        printf("Program Header %d : [UNKNOWN]\n", i);
+			}
 			printf("\t.p_type : %x,\n\t.p_offset : %x,\n\t.p_addr : %x,\n\t.p_vaddr : %x,\n\t.p_filesz : %x,\n\t .p_memsz : %x,\n\t .p_align : %x\n\n",phdr[i].p_type,
 			  phdr[i].p_offset, phdr[i].p_paddr, phdr[i].p_vaddr, phdr[i].p_filesz,
 			   phdr[i].p_memsz, phdr[i].p_align);
 		}
 
+		//close file
 		munmap(start, stat.st_size);
 		close(fd);
 
 		//Debugger
 
-		//print pid of current processu (child) and its parent
+		//print pid of current processus (child) and its parent
 		printf("Child  PID = %d and PPID = %d\n", getpid(), getppid());
 
 		printf("Debugger tracing %d\n", getpid());
@@ -264,7 +286,7 @@ int main(int argc, char const *argv[])
 		}
 
 		//running program to debug
-		printf("Running %s\n\n", cmd);
+		printf("Running %s\n\n", argv[1]);
 		if(execvp(eargv[0], eargv) == -1)
 		{
 			perror("execvp");
