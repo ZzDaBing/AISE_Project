@@ -218,17 +218,66 @@ int main(int argc, char const *argv[])
 
 		}
 
+		printf("\n========== Symbol Table ==========\n\n");
+		char sym_info[20];
+		char sym_other[10];
 		//Symbol table info
 		for (i = 0; i < nb_symbols; ++i) {
-			printf("%d: %s\n", i, strtab + symtab[i].st_name);
-			printf("\tinfo : %s\n", strtab + symtab[i].st_info);
-			printf("\tvalue : 0x%llx\n\n", strtab + symtab[i].st_value);
+
+			//
+			switch(symtab[i].st_info){
+				case STT_NOTYPE:
+					strcpy(sym_info, "NOT DEFINED");
+					break;
+				case STT_OBJECT:
+					strcpy(sym_info, "OBJECT");
+					break;
+				case STT_FUNC:
+					strcpy(sym_info, "FUNCTION/EXECUTABLE");
+					break;
+				case STT_SECTION:
+					strcpy(sym_info, "SECTION");
+					break;
+				case STT_FILE:
+					strcpy(sym_info, "FILE");
+					break;
+				case STT_LOPROC:
+					strcpy(sym_info, "PROC-SPEC SEMANTICS");
+					break;
+				default :
+				strcpy(sym_info, "UNKNOWN");
+			}
+
+			//
+			switch(symtab[i].st_other){
+				case STV_DEFAULT:
+					strcpy(sym_other,"DEFAULT");
+					break;
+				case STV_INTERNAL:
+					strcpy(sym_other,"INTERNAL");
+					break;
+				case STV_HIDDEN:
+					strcpy(sym_other,"HIDDEN");
+					break;
+				case STV_PROTECTED:
+					strcpy(sym_other,"PROTECTED");
+					break;
+				default :
+				strcpy(sym_other,"UNKNOWN");
+			}
+
+			printf("Symbol Table %d : [%s]\n", i, strtab + symtab[i].st_name);
+			printf("\tvalue : 0x%llx\n\tsize : 0x%llx\n\tinfo : %s\n\tother : %s\t(visibility)\n\tshndx : 0x%llx\n\n",
+				strtab + symtab[i].st_value, strtab + symtab[i].st_size,
+				sym_info, sym_other, strtab + symtab[i].st_shndx);
 		}
+		//free(sym_info);
+		//free(sym_other);
 
 		//Offset where are program headers
 		Elf64_Phdr* phdr = (Elf64_Phdr *)((char*)start + hdr->e_phoff);
 		
-		printf("========== Program Header ==========\n\n");
+		printf("\n========== Program Header ==========\n\n");
 		//course of the sections
 		for (i = 0; i < hdr->e_phnum; i++)
 		{
