@@ -30,33 +30,32 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		long orig_eax, prev_rip = 0;
-		long ins;
 		struct user_regs_struct regs;
-		int i = 0;
+		uint64_t orig_opcode;
+
 		while(1)
 		{
 			if(waitchild(child))
 				break;
 
 			getregs(child, &regs);
-			ins = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
+			//print_mainregs(&regs);
 
-			print_mainregs(&regs);
+			orig_opcode = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
 
+		    // getchar();
 			ptrace(PTRACE_SYSCALL, child, NULL, NULL);
 		}
-		
-		// ptrace(PTRACE_CONT, child, NULL, NULL);
 
 		putchar('\n');
 		
 		char str[30] = "";
-		snprintf(str, 30, "/proc/%d/maps", child);
+		snprintf(str, 30, "/proc/%d/stat", child);
 		// cp("info_dir/child_status.txt", str);
-
-		// strcpy(str, "");
-		// snprintf(str, 30, "/proc/%d/maps", child);
+		readfile(str, PRINT);
+		putchar('\n');
+		strcpy(str, "");
+		snprintf(str, 30, "/proc/%d/maps", child);
 		// cp("info_dir/child_maps.txt", str);
 		readfile(str, PRINT);
 	}

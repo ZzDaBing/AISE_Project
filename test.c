@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 
 int f3(int i)
@@ -23,7 +24,9 @@ int main(int argc, char const *argv[])
 {
 	char *p = "toto";
 	printf("%s\n", p);
+	//while(1);
 	p[0] = 'l';
+	printf("%s\n", p);
 
 	int h = f1(0x11111111);
 	printf("Hello ! f1 returned %X\n", h);

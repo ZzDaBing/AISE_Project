@@ -1,5 +1,7 @@
 #pragma once
 
+#define UNW_LOCAL_ONLY
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -17,6 +19,8 @@
 #include <link.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/auxv.h>
+#include <libunwind.h>
 
 enum {READ=0, PRINT, REPR};
 
@@ -30,3 +34,4 @@ void print_allregs(struct user_regs_struct *regs);
 void print_mainregs(struct user_regs_struct *regs);
 int cp(const char *to, const char *from);
 char **readfile(char *path, _Bool print);
+void backtrace();
