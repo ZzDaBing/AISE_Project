@@ -1,163 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <bits/types/siginfo_t.h>
-#include <bits/siginfo-consts.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
-#include <elf.h>
-#include <fcntl.h>
-#include <sys/user.h>
-#include <errno.h>
+#define _GNU_SOURCE
 
-// si_code values for SIGTRAP signal
-#define TRAP_BRKPT  1	// Process breakpoint
-#define TRAP_TRACE  2  	// Process trace trap
-#define TRAP_BRANCH 3  	// Process taken branch trap
-#define TRAP_HWBKPT 4  	// Hardware breakpoint/watchpoint			
-#define TRAP_UNK	5	// Undiagnosed trap
+#include "debugger.h"
 
-//function to copy a src_file to dest_file
-int cp(const char *dest, const char *src)
-{
-    int fd_dest, fd_src;
-    char buf[4096];
-    ssize_t nread;
-    int saved_errno;
-
-    fd_src = open(src, O_RDONLY);
-    if (fd_src < 0)
-        return -1;
-
-    fd_dest = open(dest, O_WRONLY | O_CREAT | O_EXCL, 0666);
-    if (fd_dest < 0)
-        goto out_error;
-
-    while (nread = read(fd_src, buf, sizeof buf), nread > 0)
-    {
-        char *out_ptr = buf;
-        ssize_t nwritten;
-
-        do {
-            nwritten = write(fd_dest, out_ptr, nread);
-
-            if (nwritten >= 0)
-            {
-                nread -= nwritten;
-                out_ptr += nwritten;
-            }
-            else if (errno != EINTR)
-            {
-                goto out_error;
-            }
-        } while (nread > 0);
-    }
-
-    if (nread == 0)
-    {
-        if (close(fd_dest) < 0)
-        {
-            fd_dest = -1;
-            goto out_error;
-        }
-        close(fd_src);
-
-        /* Success! */
-        return 0;
-    }
-
-  out_error:
-    saved_errno = errno;
-
-    close(fd_src);
-    if (fd_dest >= 0)
-        close(fd_dest);
-
-    errno = saved_errno;
-    return -1;
-}
-
-//print information for signal passed in argument
-void which_sigcode(siginfo_t *sig)
-{
-	printf("Error : ");
-	if(sig->si_signo== 5)
-		{
-			switch(sig->si_code)
-			{
-				case TRAP_BRKPT :
-					printf("Process breakpoint.\n");
-					break;
-				case TRAP_TRACE :
-					printf("Process trace trap.\n");
-					break;
-				case TRAP_BRANCH :
-					printf("Process taken branch trap.\n");
-					break;
-				case TRAP_HWBKPT :
-					printf("Hardware breakpoint/watchpoint. \n");
-					break;
-				case TRAP_UNK :
-					printf("Undiagnosed trap.\n");
-					break;
-				default:
-					printf("Unknown SIGTRAP code.\n");
-			}
-		}
-		else if(sig->si_signo == 11)
-		{
-			switch(sig->si_code)
-			{
-				case SEGV_MAPERR :
-					printf("Address not mapped to object.\n");
-					break;
-				case SEGV_ACCERR :
-					printf("Invalid permissions for mapped object.\n");
-					break;
-				case SEGV_BNDERR :
-					printf("Bounds checking failure.\n");
-					break;
-				case SEGV_PKUERR :
-					printf("Protection key checking failure.\n");
-					break;
-				case SEGV_ACCADI :
-					printf("ADI not enabled for mapped object.\n");
-					break;
-				case SEGV_ADIDERR :
-					printf("Disrupting MCD error.\n");
-					break;
-				case SEGV_ADIPERR :
-					printf("Precise MCD exception.\n");
-					break;
-				/*case SEGV_MTEAERR :
-					printf("Asynchronous ARM MTE error.\n");
-					break;
-				case SEGV_MTESERR :
-					printf("Synchronous ARM MTE exception.\n");
-					break;*/
-				default:
-					printf("Unknown SIGSEGV code.\n");
-			}
-		}
-		putchar('\n');
-}
-
-int main(int argc, char const *argv[])
+int main(int argc, char **argv)
 {
 	//print the pid of current processus and his parent
 	fprintf(stderr, "Parent PID = %d and PPID = %d\n", getpid(), getppid());
 	if(argc != 2)
 		return printf("Error arg : ./debug <executable>\n"), 1;
-	
-	char * const eargv[] = {argv[1], NULL};
-
-	siginfo_t sig;
-	int wait_status;
 
 	pid_t child = fork();
 	if(child == -1)
@@ -166,7 +16,8 @@ int main(int argc, char const *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if(child == 0){	//child
+	if(child == 0) //child
+	{	
 		void* start = NULL;
 		int i, fd;
 		struct stat stat;
@@ -178,7 +29,7 @@ int main(int argc, char const *argv[])
 			perror("open");
 
 		// get file's size
-		fstat(fd, &stat);
+		fstat(fd, &stat);  
 
 		//file mmap
 		start = mmap(0, stat.st_size, PROT_READ , MAP_FILE | MAP_SHARED, fd, 0);
@@ -332,79 +183,44 @@ int main(int argc, char const *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		//running program to debug
-		printf("Running %s\n\n", argv[1]);
-		if(execvp(eargv[0], eargv) == -1)
-		{
-			perror("execvp");
-			exit(EXIT_FAILURE);
-		}
+		run_exec(argv[1]);
 	}
-	else{	//father
-
-		//Variable declarations
+	else
+	{
 		struct user_regs_struct regs;
-		unsigned int rip;
+		uint64_t orig_opcode;
 
-		//check if can trace child
-		if(waitpid(child, &wait_status, 0) == -1)
+		while(1)
 		{
-			perror("waitpid");
-			exit(EXIT_FAILURE);
+			if(waitchild(child))
+				break;
+
+			getregs(child, &regs);
+			//print_mainregs(&regs);
+
+			orig_opcode = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
+
+		    // getchar();
+			ptrace(PTRACE_SYSCALL, child, NULL, NULL);
 		}
-
-		if(WIFSTOPPED(wait_status))
-        {
-            printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
-        }
-
-        //get infos from the tracee
-        ptrace(PTRACE_GETREGS, child, &regs.rip, rip);
-		rip = ptrace(PTRACE_PEEKTEXT, child, regs.rip, NULL);
-		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
-		printf("Ptrace --> ");
-		printf("Signal number = %d\n", sig.si_signo);
-		printf("\t   Signal code = %d\n", sig.si_code);
 
 		//copy /proc//status file and /proc//maps file of child processus in new files in info_dir
 		char str[30] = "";
-		int pid_child = (int) child;
-		sprintf(str, "/proc/%d/status", pid_child);
+		snprintf(str, 30, "/proc/%d/stat", child);
 		cp("info_dir/child_status.txt", str);
+		readfile(str, PRINT);
+		putchar('\n');
 		strcpy(str, "");
-		sprintf(str, "/proc/%d/maps", pid_child);
+		snprintf(str, 30, "/proc/%d/maps", child);
 		cp("info_dir/child_maps.txt", str);
+		readfile(str, PRINT);
 		
-		//
-		which_sigcode(&sig);
-		
-		ptrace(PTRACE_CONT, child, NULL, NULL);
-
-		wait_status = 0;
-		if(waitpid(child, &wait_status, 0) == -1)
-		{
-			perror("waitpid");
-			exit(EXIT_FAILURE);
-		}
-
-		if(WIFSTOPPED(wait_status))
-        {
-            printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
-        }
-
-        //get the sig fault
-		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
-		printf("Ptrace --> ");
-		printf("Signal number = %d\n", sig.si_signo);
-		printf("\t   Signal code = %d\n", sig.si_code);
-		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
-		which_sigcode(&sig);
-
+		putchar('\n');
 
 		//exec objdump
 		strcpy(str, "objdump -d ");
 		strcat(str, argv[1]);
-		system(str);
+		system(str);	
 	}
 
 	return 0;
