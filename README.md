@@ -50,5 +50,5 @@ par la suite. Néanmoins nous n'avons pas réussi à récupérer toutes les info
 de la section <.text> ou <.data>, qui auraient été très utiles.
 Aussi, un system objdump est appelé pour afficher des informations très utiles pour le déboggage. Comme future mise à jour,
 une possibilité seerait d'améliorer ce point en affichant les mêmes infos sans passer par l'appel à objdump.
-Cela serait plus intéressant et il n'y aurait pas besoin de se reposer sur cet outil.
-
+Nous n'avons pas exploré le dwarf car assez compliqué à comprendre et étions sur des pistes différentes que celle-là, mais
+ca peut être une amélioration fructueuse dans le programme.
