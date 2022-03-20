@@ -35,6 +35,8 @@ et print_mainregs() affichent respectivement tous les registres ou les principau
 les fichiers /proc/(child)/maps et /proc/(child)/status comme expliqué plus haut. Enfin, dans le père, on peut faire évoluer
 l'exécution du child instructions par instructions ou syscall par syscall. Pour ces derniers, le fichier mysyscall.c permet
 d'identifier quel syscall est appelé à chaque appel de syscall indiqué dans le registre orig_rax.
+Une partie du code utilise la structure du ELF et affiche certaines informations comme le Program Header, la Section Header
+ou encore la table des symboles.
 
 ## Non réalisé
 
@@ -43,5 +45,10 @@ possible. En effet, une interface "à la GDB" aurait été appréciable, mais pa
 On a voulu utiliser les adresses issues de /proc/(child)/maps mais nous n'avons pas réussi à convertir avec les adresses
 statiques du header de l'exécutable. On obtenait bien des adresses grâce au registre rip (instruction pointer) et à PTRACE_PEEKTEXT mais ce manque de conversion entre les adresses nous faisait obtenir des codes d'opérations qui
 ne corespondaient pas. Pourtant on avait préparé grâce à la librairie Capstone de quoi convertir en code assembleur.
-Ensuite 
+Comme dit dans la partie résultats, nous utilisons la structure du ELF pour récupérer certaines informations que nous affichons
+par la suite. Néanmoins nous n'avons pas réussi à récupérer toutes les informations que l'on aurait voulu, comme récolter le contenu
+de la section <.text> ou <.data>, qui auraient été très utiles.
+Aussi, un system objdump est appelé pour afficher des informations très utiles pour le déboggage. Comme future mise à jour,
+une possibilité seerait d'améliorer ce point en affichant les mêmes infos sans passer par l'appel à objdump.
+Cela serait plus intéressant et il n'y aurait pas besoin de se reposer sur cet outil.
 
