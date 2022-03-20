@@ -202,18 +202,23 @@ int main(int argc, char **argv)
 
 		    // getchar();
 			ptrace(PTRACE_SYSCALL, child, NULL, NULL);
+			// ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
 		}
+
+		putchar('\n');
 
 		//copy /proc//status file and /proc//maps file of child processus in new files in info_dir
 		char str[30] = "";
 		snprintf(str, 30, "/proc/%d/stat", child);
 		cp("info_dir/child_status.txt", str);
-		readfile(str, PRINT);
+		readfile(str);
+		
 		putchar('\n');
+
 		strcpy(str, "");
 		snprintf(str, 30, "/proc/%d/maps", child);
 		cp("info_dir/child_maps.txt", str);
-		readfile(str, PRINT);
+		readfile(str);
 		
 		putchar('\n');
 

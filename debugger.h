@@ -24,8 +24,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-enum {READ=0, PRINT, REPR};
-
 void which_sigcode(siginfo_t *sig);
 void mysyscall(long orig);
 void run_exec(char *argv);
@@ -35,5 +33,5 @@ void getregs(pid_t pid, struct user_regs_struct *regs);
 void print_allregs(struct user_regs_struct *regs);
 void print_mainregs(struct user_regs_struct *regs);
 int cp(const char *to, const char *from);
-char **readfile(char *path, _Bool print);
-void backtrace();
+void readfile(char *path);
+// void backtrace();

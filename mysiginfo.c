@@ -1,10 +1,6 @@
 #define _GNU_SOURCE
 #include "debugger.h"
 
-//TODO: faire pour tous les signaux de bits/siginfo-consts.h
-//		en pensant que les codes des signaux sont différents
-//		suivant les ordis.
-
 void which_sigcode(siginfo_t *sig)
 {
 	if(!strcmp(sigabbrev_np(sig->si_signo), "TRAP"))
