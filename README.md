@@ -49,6 +49,6 @@ Comme dit dans la partie résultats, nous utilisons la structure du ELF pour ré
 par la suite. Néanmoins nous n'avons pas réussi à récupérer toutes les informations que l'on aurait voulu, comme récolter le contenu
 de la section <.text> ou <.data>, qui auraient été très utiles.
 Aussi, un system objdump est appelé pour afficher des informations très utiles pour le déboggage. Comme future mise à jour,
-une possibilité seerait d'améliorer ce point en affichant les mêmes infos sans passer par l'appel à objdump.
+une possibilité serait d'améliorer ce point en affichant les mêmes infos sans passer par l'appel à objdump.
 Nous n'avons pas exploré le dwarf car assez compliqué à comprendre et étions sur des pistes différentes que celle-là, mais
-ca peut être une amélioration fructueuse dans le programme.
+cela peut être une amélioration fructueuse dans le programme.
