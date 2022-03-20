@@ -402,9 +402,9 @@ int main(int argc, char const *argv[])
 
 
 		//exec objdump
-		// strcpy(str, "objdump -d /bin/ls");
-		// //strcat(str, argv[1]);
-		// char * const fargv[] = {str, NULL};
+		strcpy(str, "objdump -d ");
+		strcat(str, argv[1]);
+		system(str);
 	}
 
 	return 0;
