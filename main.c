@@ -23,28 +23,28 @@
 #define TRAP_UNK	5	// Undiagnosed trap
 
 //function to copy a src_file to dest_file
-int cp(const char *to, const char *from)
+int cp(const char *dest, const char *src)
 {
-    int fd_to, fd_from;
+    int fd_dest, fd_src;
     char buf[4096];
     ssize_t nread;
     int saved_errno;
 
-    fd_from = open(from, O_RDONLY);
-    if (fd_from < 0)
+    fd_src = open(src, O_RDONLY);
+    if (fd_src < 0)
         return -1;
 
-    fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL, 0666);
-    if (fd_to < 0)
+    fd_dest = open(dest, O_WRONLY | O_CREAT | O_EXCL, 0666);
+    if (fd_dest < 0)
         goto out_error;
 
-    while (nread = read(fd_from, buf, sizeof buf), nread > 0)
+    while (nread = read(fd_src, buf, sizeof buf), nread > 0)
     {
         char *out_ptr = buf;
         ssize_t nwritten;
 
         do {
-            nwritten = write(fd_to, out_ptr, nread);
+            nwritten = write(fd_dest, out_ptr, nread);
 
             if (nwritten >= 0)
             {
@@ -60,12 +60,12 @@ int cp(const char *to, const char *from)
 
     if (nread == 0)
     {
-        if (close(fd_to) < 0)
+        if (close(fd_dest) < 0)
         {
-            fd_to = -1;
+            fd_dest = -1;
             goto out_error;
         }
-        close(fd_from);
+        close(fd_src);
 
         /* Success! */
         return 0;
@@ -74,9 +74,9 @@ int cp(const char *to, const char *from)
   out_error:
     saved_errno = errno;
 
-    close(fd_from);
-    if (fd_to >= 0)
-        close(fd_to);
+    close(fd_src);
+    if (fd_dest >= 0)
+        close(fd_dest);
 
     errno = saved_errno;
     return -1;
@@ -271,8 +271,6 @@ int main(int argc, char const *argv[])
 				strtab + symtab[i].st_value, strtab + symtab[i].st_size,
 				sym_info, sym_other, strtab + symtab[i].st_shndx);
 		}
-		//free(sym_info);
-		//free(sym_other);
 
 		//Offset where are program headers
 		Elf64_Phdr* phdr = (Elf64_Phdr *)((char*)start + hdr->e_phoff);
@@ -367,7 +365,18 @@ int main(int argc, char const *argv[])
 		printf("Ptrace --> ");
 		printf("Signal number = %d\n", sig.si_signo);
 		printf("\t   Signal code = %d\n", sig.si_code);
+
+		//copy /proc//status file and /proc//maps file of child processus in new files in info_dir
+		char str[30] = "";
+		int pid_child = (int) child;
+		sprintf(str, "/proc/%d/status", pid_child);
+		cp("info_dir/child_status.txt", str);
+		printf("ok\n");
+		strcpy(str, "");
+		sprintf(str, "/proc/%d/maps", pid_child);
+		cp("info_dir/child_maps.txt", str);
 		
+		//
 		which_sigcode(&sig);
 		
 		ptrace(PTRACE_CONT, child, NULL, NULL);
@@ -384,6 +393,7 @@ int main(int argc, char const *argv[])
             printf("Waitpid : Received signal n°%d.\n" , (int) WSTOPSIG(wait_status));
         }
 
+        //get the sig fault
 		ptrace(PTRACE_GETSIGINFO, child, NULL, &sig);
 		printf("Ptrace --> ");
 		printf("Signal number = %d\n", sig.si_signo);
@@ -391,15 +401,7 @@ int main(int argc, char const *argv[])
 		printf("\t   Memory location (fault) = 0x%x\n", sig.si_addr);
 		which_sigcode(&sig);
 
-		//copy /proc//status file and /proc//maps file of child processus in new files in info_dir
-		char str[30] = "";
-		int pid_child = (int) child;
-		sprintf(str, "/proc/%d/status", pid_child);
-		cp("info_dir/child_status.txt", str);
 
-		strcpy(str, "");
-		sprintf(str, "/proc/%d/maps", pid_child);
-		cp("info_dir/child_maps.txt", str);
 	}
 
 	return 0;
