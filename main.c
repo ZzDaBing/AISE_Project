@@ -371,7 +371,6 @@ int main(int argc, char const *argv[])
 		int pid_child = (int) child;
 		sprintf(str, "/proc/%d/status", pid_child);
 		cp("info_dir/child_status.txt", str);
-		printf("ok\n");
 		strcpy(str, "");
 		sprintf(str, "/proc/%d/maps", pid_child);
 		cp("info_dir/child_maps.txt", str);
@@ -402,6 +401,10 @@ int main(int argc, char const *argv[])
 		which_sigcode(&sig);
 
 
+		//exec objdump
+		// strcpy(str, "objdump -d /bin/ls");
+		// //strcat(str, argv[1]);
+		// char * const fargv[] = {str, NULL};
 	}
 
 	return 0;
